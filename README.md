@@ -10,6 +10,8 @@ SilentPrintBridge is a Windows service that enables web applications to print di
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+<img width="1231" height="929" alt="Screenshot 2026-04-25 183256" src="https://github.com/user-attachments/assets/0401271d-7b1a-4a56-91d3-37a146d9887d" />
+
 ## Features
 
 - **Silent Printing**: No Windows print dialogs
