@@ -1,6 +1,7 @@
 # SilentPrintBridge
 
 **Silent thermal printer bridge for web applications**
+**Developed by Khalil Hasanzade for Algernon Wede**
 
 > **Note**: This project was developed at the request of my valued client, **Algernon Wede**, to provide a robust solution for silent thermal printing in web-based POS systems.
 
