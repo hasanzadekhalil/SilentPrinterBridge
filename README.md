@@ -2,8 +2,6 @@
 
 **Silent thermal printer bridge for web applications**
 
-**Developed by Khalil Hasanzade for Algernon Wede**
-
 > **Note**: This project was developed at the request of my valued client, **Algernon Wede**, to provide a robust solution for silent thermal printing in web-based POS systems.
 
 SilentPrintBridge is a Windows service that enables web applications to print directly to thermal printers (ESC/POS) without showing print dialogs. Perfect for POS systems, receipt printing, and kiosk applications.
