@@ -2,6 +2,8 @@
 
 **Silent thermal printer bridge for web applications**
 
+> **Note**: This project was developed at the request of my valued client, **Algernon Wede**, to provide a robust solution for silent thermal printing in web-based POS systems.
+
 SilentPrintBridge is a Windows service that enables web applications to print directly to thermal printers (ESC/POS) without showing print dialogs. Perfect for POS systems, receipt printing, and kiosk applications.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
@@ -246,3 +248,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Support
 
 For issues and questions, please use the [GitHub Issues](../../issues) page.
+
+---
+
+**Developed by Khalil Hasanzade for Algernon Wede**
+
+This project was created to meet the specific requirements of a professional POS system implementation, ensuring reliable and silent thermal printing for web-based applications.
