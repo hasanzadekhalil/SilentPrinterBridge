@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SilentPrintBridge - Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .response-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response-box pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .status-success {
+            border-left: 4px solid #28a745;
+            background: #d4edda;
+        }
+
+        .status-error {
+            border-left: 4px solid #dc3545;
+            background: #f8d7da;
+        }
+
+        .status-info {
+            border-left: 4px solid #17a2b8;
+            background: #d1ecf1;
+        }
+
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .note strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖨️ SilentPrintBridge Test Page</h1>
+        <p class="subtitle">Browser-to-Printer Silent Printing for Chrome & Edge</p>
+
+        <!-- Configuration Section -->
+        <div class="section">
+            <h2>⚙️ Configuration</h2>
+            <div class="form-group">
+                <label for="endpoint">Endpoint URL:</label>
+                <input type="text" id="endpoint" value="http://127.0.0.1:17878" placeholder="http://127.0.0.1:17878">
+            </div>
+            <div class="form-group">
+                <label for="apiKey">API Key (optional):</label>
+                <input type="password" id="apiKey" placeholder="Leave empty if not required">
+            </div>
+            <div class="form-group">
+                <label for="printerName">Printer Name Override (optional):</label>
+                <input type="text" id="printerName" placeholder="Leave empty to use configured printer">
+            </div>
+        </div>
+
+        <!-- Service Status Section -->
+        <div class="section">
+            <h2>🔍 Service Status</h2>
+            <div class="button-group">
+                <button class="btn-info" onclick="checkHealth()">Health Check</button>
+                <button class="btn-info" onclick="listPrinters()">List Printers</button>
+                <button class="btn-info" onclick="getVersion()">Get Version</button>
+            </div>
+        </div>
+
+        <!-- Test Print Section -->
+        <div class="section">
+            <h2>🧪 Test Printing</h2>
+            <div class="button-group">
+                <button class="btn-success" onclick="testPrint()">Built-In Test Receipt</button>
+                <button class="btn-primary" onclick="printPlainText()">Print Plain Text</button>
+                <button class="btn-primary" onclick="printEscPos()">Print ESC/POS</button>
+            </div>
+            <div class="note">
+                <strong>Note:</strong>
+                These buttons will print to your configured thermal printer without showing any Windows dialog.
+                Make sure your printer is online and configured in appsettings.json.
+            </div>
+        </div>
+
+        <!-- Custom Text Section -->
+        <div class="section">
+            <h2>📝 Custom Text Print</h2>
+            <div class="form-group">
+                <label for="customText">Enter text to print:</label>
+                <textarea id="customText" placeholder="Enter your receipt text here...
+Line 1
+Line 2
+Line 3
+
+Total: $0.00
+
+Thank you!"></textarea>
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="printCustomText()">Print Custom Text</button>
+            </div>
+        </div>
+
+        <!-- PDF Test Section -->
+        <div class="section">
+            <h2>📄 PDF Print (Experimental)</h2>
+            <div class="button-group">
+                <button class="btn-warning" onclick="testPdfPrint()">Try PDF Print</button>
+            </div>
+            <div class="note">
+                <strong>Note:</strong>
+                PDF printing is disabled by default and requires additional configuration.
+                ESC/POS and text modes are recommended for thermal receipt printers.
+            </div>
+        </div>
+
+        <!-- Response Section -->
+        <div class="section">
+            <h2>📋 Response</h2>
+            <div id="response" class="response-box status-info">
+                <pre>Click a button above to test the service...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getEndpoint() {
+            return document.getElementById('endpoint').value.trim();
+        }
+
+        function getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (apiKey) {
+                headers['X-SilentPrintBridge-Key'] = apiKey;
+            }
+            return headers;
+        }
+
+        function getPrinterName() {
+            return document.getElementById('printerName').value.trim() || null;
+        }
+
+        function showResponse(data, isError = false) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.className = 'response-box ' + (isError ? 'status-error' : 'status-success');
+            responseDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        function showError(message) {
+            showResponse({ error: message, timestamp: new Date().toISOString() }, true);
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(getEndpoint() + '/health', {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                showResponse(data, !response.ok);
+            } catch (error) {
+                showError('Failed to connect: ' + error.message);
+            }
+        }
+
+        async function listPrinters() {
+            try {
+                const response = await fetch(getEndpoint() + '/printers', {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                showResponse(data, !response.ok);
+            } catch (error) {
+                showError('Failed to list printers: ' + error.message);
+            }
+        }
+
+        async function getVersion() {
+            try {
+                const response = await fetch(getEndpoint() + '/version', {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                showResponse(data, !response.ok);
+            } catch (error) {
+                showError('Failed to get version: ' + error.message);
+            }
+        }
+
+        async function testPrint() {
+            try {
+                const body = {};
+                const printerName = getPrinterName();
+                if (printerName) {
+                    body.printerName = printerName;
+                }
+
+                const response = await fetch(getEndpoint() + '/test-print', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResponse(data, !data.success);
+            } catch (error) {
+                showError('Test print failed: ' + error.message);
+            }
+        }
+
+        async function printPlainText() {
+            const sampleText = `SilentPrintBridge Test
+Plain Text Mode
+${new Date().toLocaleString()}
+
+Item 1                    $10.00
+Item 2                    $15.00
+Item 3                     $5.00
+--------------------------------
+Total:                    $30.00
+
+Thank you for your purchase!`;
+
+            try {
+                const body = {
+                    mode: 'text',
+                    data: sampleText,
+                    encoding: 'utf8',
+                    cut: true,
+                    jobName: 'Plain Text Test'
+                };
+
+                const printerName = getPrinterName();
+                if (printerName) {
+                    body.printerName = printerName;
+                }
+
+                const response = await fetch(getEndpoint() + '/print', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResponse(data, !data.success);
+            } catch (error) {
+                showError('Plain text print failed: ' + error.message);
+            }
+        }
+
+        async function printEscPos() {
+            // Build a simple ESC/POS receipt
+            const escPos = [
+                0x1B, 0x40,  // Initialize
+                0x1B, 0x61, 0x01,  // Center align
+                0x1B, 0x45, 0x01,  // Bold on
+                ...textToBytes('SilentPrintBridge'),
+                0x1B, 0x45, 0x00,  // Bold off
+                0x0A, 0x0A,  // Line feeds
+                0x1B, 0x61, 0x00,  // Left align
+                ...textToBytes('ESC/POS Mode Test'),
+                0x0A,
+                ...textToBytes(new Date().toLocaleString()),
+                0x0A, 0x0A,
+                ...textToBytes('Item 1          $10.00'),
+                0x0A,
+                ...textToBytes('Item 2          $15.00'),
+                0x0A,
+                ...textToBytes('Item 3           $5.00'),
+                0x0A,
+                ...textToBytes('------------------------'),
+                0x0A,
+                0x1B, 0x61, 0x02,  // Right align
+                0x1B, 0x45, 0x01,  // Bold on
+                ...textToBytes('Total:  $30.00'),
+                0x1B, 0x45, 0x00,  // Bold off
+                0x0A,
+                0x1B, 0x61, 0x01,  // Center align
+                0x0A,
+                ...textToBytes('Thank you!'),
+                0x0A, 0x0A, 0x0A, 0x0A,
+                0x1D, 0x56, 0x00  // Full cut
+            ];
+
+            const base64Data = btoa(String.fromCharCode.apply(null, escPos));
+
+            try {
+                const body = {
+                    mode: 'escpos',
+                    data: base64Data,
+                    encoding: 'base64',
+                    cut: false,  // Already included in ESC/POS
+                    jobName: 'ESC/POS Test'
+                };
+
+                const printerName = getPrinterName();
+                if (printerName) {
+                    body.printerName = printerName;
+                }
+
+                const response = await fetch(getEndpoint() + '/print', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResponse(data, !data.success);
+            } catch (error) {
+                showError('ESC/POS print failed: ' + error.message);
+            }
+        }
+
+        async function printCustomText() {
+            const customText = document.getElementById('customText').value;
+
+            if (!customText.trim()) {
+                showError('Please enter some text to print');
+                return;
+            }
+
+            try {
+                const body = {
+                    mode: 'text',
+                    data: customText,
+                    encoding: 'utf8',
+                    cut: true,
+                    jobName: 'Custom Text'
+                };
+
+                const printerName = getPrinterName();
+                if (printerName) {
+                    body.printerName = printerName;
+                }
+
+                const response = await fetch(getEndpoint() + '/print', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResponse(data, !data.success);
+            } catch (error) {
+                showError('Custom text print failed: ' + error.message);
+            }
+        }
+
+        async function testPdfPrint() {
+            // Create a minimal PDF (this is just for testing the error handling)
+            const minimalPdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000056 00000 n\n0000000115 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF';
+            const base64Pdf = btoa(minimalPdf);
+
+            try {
+                const body = {
+                    mode: 'pdf_base64',
+                    data: base64Pdf,
+                    encoding: 'base64',
+                    jobName: 'PDF Test'
+                };
+
+                const printerName = getPrinterName();
+                if (printerName) {
+                    body.printerName = printerName;
+                }
+
+                const response = await fetch(getEndpoint() + '/print', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResponse(data, !data.success);
+            } catch (error) {
+                showError('PDF print failed: ' + error.message);
+            }
+        }
+
+        function textToBytes(text) {
+            const bytes = [];
+            for (let i = 0; i < text.length; i++) {
+                bytes.push(text.charCodeAt(i));
+            }
+            return bytes;
+        }
+
+        // Auto-check health on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkHealth, 500);
+        });
+    </script>
+</body>
+</html>

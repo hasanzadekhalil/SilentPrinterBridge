@@ -1,0 +1,100 @@
+### Sample API Requests
+
+# Health Check
+GET http://127.0.0.1:17878/health
+
+###
+
+# List Printers
+GET http://127.0.0.1:17878/printers
+
+###
+
+# Get Version
+GET http://127.0.0.1:17878/version
+
+###
+
+# Test Print
+POST http://127.0.0.1:17878/test-print
+Content-Type: application/json
+
+{
+  "printerName": "EPSON TM-T20III",
+  "cut": true
+}
+
+###
+
+# Print Plain Text
+POST http://127.0.0.1:17878/print
+Content-Type: application/json
+
+{
+  "mode": "text",
+  "data": "SilentPrintBridge Test\nPlain Text Receipt\n\nItem 1    $10.00\nItem 2    $15.00\n\nTotal:    $25.00\n\nThank you!",
+  "encoding": "utf8",
+  "cut": true,
+  "jobName": "Text Receipt"
+}
+
+###
+
+# Print ESC/POS (base64 encoded)
+POST http://127.0.0.1:17878/print
+Content-Type: application/json
+
+{
+  "mode": "escpos",
+  "data": "G0BBR0BIZWxsbyBXb3JsZAoKVGhhbmsgeW91IQoKCgodVgA=",
+  "encoding": "base64",
+  "cut": false,
+  "jobName": "ESC/POS Receipt"
+}
+
+###
+
+# Print with Printer Override
+POST http://127.0.0.1:17878/print
+Content-Type: application/json
+
+{
+  "mode": "text",
+  "printerName": "My Other Printer",
+  "data": "Test receipt",
+  "encoding": "utf8",
+  "cut": true
+}
+
+###
+
+# Print Multiple Copies
+POST http://127.0.0.1:17878/print
+Content-Type: application/json
+
+{
+  "mode": "text",
+  "data": "Receipt Copy Test",
+  "encoding": "utf8",
+  "copies": 2,
+  "cut": true
+}
+
+###
+
+# Reload Configuration
+POST http://127.0.0.1:17878/config/reload
+
+###
+
+# With API Key (if enabled)
+POST http://127.0.0.1:17878/print
+Content-Type: application/json
+X-SilentPrintBridge-Key: your-api-key-here
+
+{
+  "mode": "text",
+  "data": "Secure receipt",
+  "encoding": "utf8",
+  "cut": true
+}

@@ -1,0 +1,63 @@
+name: Build Portable EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore src/SilentPrintBridge/SilentPrintBridge.csproj
+
+    - name: Build
+      run: dotnet build src/SilentPrintBridge/SilentPrintBridge.csproj -c Release --no-restore
+
+    - name: Publish Portable
+      run: |
+        dotnet publish src/SilentPrintBridge/SilentPrintBridge.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=true `
+          -o portable-output
+
+    - name: Create Portable Package
+      run: |
+        New-Item -ItemType Directory -Force -Path portable-package
+        New-Item -ItemType Directory -Force -Path portable-package/data/logs
+        New-Item -ItemType Directory -Force -Path portable-package/data/temp
+        New-Item -ItemType Directory -Force -Path portable-package/samples
+
+        Copy-Item portable-output/SilentPrintBridge.exe portable-package/
+        Copy-Item portable-output/appsettings.json portable-package/
+        Copy-Item samples/sample.html portable-package/samples/
+        Copy-Item scripts/START_PORTABLE.bat portable-package/START.bat
+
+        # Create README
+        @"
+        # SilentPrintBridge Portable
+
+        1. Edit appsettings.json - set your printer name
+        2. Double-click START.bat
+        3. Open samples/sample.html in browser
+        "@ | Out-File portable-package/README.txt
+
+    - name: Upload Portable Package
+      uses: actions/upload-artifact@v3
+      with:
+        name: SilentPrintBridge-Portable-Windows-x64
+        path: portable-package/
+        retention-days: 90
