@@ -284,7 +284,7 @@ configured and functioning properly.
 ========================================
 ";
 
-            bool success = PdfPrinterHelper.PrintTextToPdf(printerName, textContent, "Test Receipt");
+            bool success = PdfPrinterHelper.PrintTextToPrinter(printerName, textContent, "Test Receipt");
 
             if (success)
             {

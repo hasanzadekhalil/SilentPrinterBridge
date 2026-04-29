@@ -122,8 +122,7 @@ public class PrintJobService
                     break;
 
                 case "text":
-                    printData = ProcessTextMode(request);
-                    break;
+                    return ProcessTextMode(request, printerName, requestId, jobId);
 
                 case "pdf_base64":
                     return ProcessPdfMode(request, printerName, requestId, jobId);
@@ -237,27 +236,60 @@ public class PrintJobService
         return data;
     }
 
-    private byte[] ProcessTextMode(PrintRequest request)
+    private PrintResponse ProcessTextMode(PrintRequest request, string printerName, string requestId, string jobId)
     {
-        // Sanitize text
         string text = _textFormatter.SanitizeText(request.Data);
 
-        // Determine chars per line
-        int charsPerLine = request.ReceiptWidth switch
+        for (int copy = 1; copy <= request.Copies; copy++)
         {
-            80 => _config.Printer.CharsPerLine80mm,
-            58 => _config.Printer.CharsPerLine58mm,
-            _ => _config.Printer.CharsPerLine58mm
+            string copyJobName = request.Copies > 1 ? $"{request.JobName} (Copy {copy})" : request.JobName;
+
+            if (PdfPrinterHelper.IsPdfPrinter(printerName))
+            {
+                bool pdfSuccess = PdfPrinterHelper.PrintTextToPrinter(printerName, text, copyJobName);
+                if (!pdfSuccess)
+                {
+                    return CreateErrorResponse(requestId, "PRINT_FAILED",
+                        $"Print failed on copy {copy}: Failed to print text via Windows printer driver", jobId, printerName, "text");
+                }
+            }
+            else
+            {
+                int charsPerLine = request.ReceiptWidth switch
+                {
+                    80 => _config.Printer.CharsPerLine80mm,
+                    58 => _config.Printer.CharsPerLine58mm,
+                    _ => _config.Printer.CharsPerLine58mm
+                };
+
+                string encoding = request.CodePage ?? _config.Printer.Encoding;
+                bool appendCut = request.Cut && _config.Printer.AppendCutCommand;
+                int feedLines = appendCut ? _config.Printer.AppendFeedBeforeCutLines : 0;
+
+                var printData = _textFormatter.FormatTextToEscPos(text, charsPerLine, appendCut, feedLines, encoding);
+                var result = _rawPrinter.SendBytesToPrinter(printerName, printData, copyJobName);
+
+                if (!result.Success)
+                {
+                    bool fallbackSuccess = PdfPrinterHelper.PrintTextToPrinter(printerName, text, copyJobName);
+                    if (!fallbackSuccess)
+                    {
+                        return CreateErrorResponse(requestId, "PRINT_FAILED",
+                            $"Print failed on copy {copy}: {result.Message}", jobId, printerName, "text");
+                    }
+                }
+            }
+        }
+
+        return new PrintResponse
+        {
+            Success = true,
+            JobId = jobId,
+            RequestId = requestId,
+            PrinterName = printerName,
+            Mode = "text",
+            Message = $"Successfully printed {request.Copies} cop{(request.Copies == 1 ? "y" : "ies")}"
         };
-
-        // Determine encoding
-        string encoding = request.CodePage ?? _config.Printer.Encoding;
-
-        // Format to ESC/POS
-        bool appendCut = request.Cut && _config.Printer.AppendCutCommand;
-        int feedLines = appendCut ? _config.Printer.AppendFeedBeforeCutLines : 0;
-
-        return _textFormatter.FormatTextToEscPos(text, charsPerLine, appendCut, feedLines, encoding);
     }
 
     private PrintResponse ProcessPdfMode(PrintRequest request, string printerName, string requestId, string jobId)

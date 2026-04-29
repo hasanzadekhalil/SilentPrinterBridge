@@ -11,7 +11,7 @@ public class PdfPrinterHelper
                printerName.Contains("XPS", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool PrintTextToPdf(string printerName, string text, string jobName)
+    public static bool PrintTextToPrinter(string printerName, string text, string jobName)
     {
         try
         {
