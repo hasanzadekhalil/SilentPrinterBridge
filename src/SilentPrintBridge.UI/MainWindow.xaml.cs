@@ -3,9 +3,13 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Navigation;
 using System.Diagnostics;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using Microsoft.Win32;
+using SilentPrintBridge.Branding;
 using SilentPrintBridge.UI.Models;
 using SilentPrintBridge.UI.Services;
+using SilentPrintBridge.Utils;
 using Hardcodet.Wpf.TaskbarNotification;
 
 namespace SilentPrintBridge.UI;
@@ -16,9 +20,11 @@ public partial class MainWindow : Window
     private readonly ConfigManager _configManager;
     private readonly PrinterService _printerService;
     private readonly ApiClient _apiClient;
+    private readonly WindowsServiceInstaller _windowsServiceInstaller;
     private readonly string _exePath;
     private readonly string _configPath;
     private TaskbarIcon? _trayIcon;
+    private readonly DispatcherTimer _statusRefreshTimer;
 
     public MainWindow()
     {
@@ -26,44 +32,71 @@ public partial class MainWindow : Window
 
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         _exePath = Path.Combine(baseDir, "SilentPrintBridge.exe");
-        _configPath = Path.Combine(baseDir, "appsettings.json");
+        _configPath = AppPaths.ResolveRuntimeConfigPath(baseDir);
 
         _serviceManager = new ServiceManager(_exePath, baseDir);
         _configManager = new ConfigManager(_configPath);
         _printerService = new PrinterService();
         _apiClient = new ApiClient();
+        _windowsServiceInstaller = new WindowsServiceInstaller(_exePath);
+        _statusRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
 
         _serviceManager.OutputReceived += ServiceManager_OutputReceived;
         _serviceManager.StatusChanged += ServiceManager_StatusChanged;
         _serviceManager.ErrorOccurred += ServiceManager_ErrorOccurred;
+        _statusRefreshTimer.Tick += async (_, _) => await RefreshServiceStatusAsync();
 
+        ApplyBranding();
         InitializeTrayIcon();
         LoadConfiguration();
         LoadPrinters();
         CheckAutoStart();
+        Loaded += async (_, _) =>
+        {
+            _statusRefreshTimer.Start();
+            await RefreshServiceStatusAsync();
+        };
+    }
+
+    private void ApplyBranding()
+    {
+        if (BuildBranding.IsCustomerBuild)
+        {
+            HeaderDeveloperText.Visibility = Visibility.Collapsed;
+            AboutDeveloperBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        HeaderDeveloperText.Text = $"Developed by {BuildBranding.DeveloperName} • {BuildBranding.DeveloperProfileLabel}";
+        AboutDeveloperTitleText.Text = "Developed by";
+        AboutDeveloperNameText.Text = BuildBranding.DeveloperName;
+        AboutDeveloperHyperlink.NavigateUri = new Uri(BuildBranding.DeveloperProfileUrl);
+        AboutDeveloperLinkRun.Text = BuildBranding.DeveloperProfileLabel;
     }
 
     private void InitializeTrayIcon()
     {
         try
         {
+            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? _exePath);
             _trayIcon = new TaskbarIcon
             {
-                ToolTipText = "SilentPrintBridge"
+                ToolTipText = "SilentPrintBridge",
+                Icon = icon is null ? null : new System.Drawing.Icon(icon, new System.Drawing.Size(32, 32))
             };
 
             var contextMenu = new System.Windows.Controls.ContextMenu();
 
             var showItem = new System.Windows.Controls.MenuItem { Header = "Show" };
-            showItem.Click += (s, e) => { Show(); WindowState = WindowState.Normal; };
+            showItem.Click += (s, e) => RestoreFromExternalActivation();
             contextMenu.Items.Add(showItem);
 
             var startItem = new System.Windows.Controls.MenuItem { Header = "Start Service" };
-            startItem.Click += async (s, e) => await StartServiceAsync();
+            startItem.Click += async (s, e) => await StartManagedServiceAsync();
             contextMenu.Items.Add(startItem);
 
             var stopItem = new System.Windows.Controls.MenuItem { Header = "Stop Service" };
-            stopItem.Click += async (s, e) => await StopServiceAsync();
+            stopItem.Click += async (s, e) => await StopManagedServiceAsync();
             contextMenu.Items.Add(stopItem);
 
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
@@ -73,7 +106,7 @@ public partial class MainWindow : Window
             contextMenu.Items.Add(exitItem);
 
             _trayIcon.ContextMenu = contextMenu;
-            _trayIcon.TrayLeftMouseDown += (s, e) => { Show(); WindowState = WindowState.Normal; };
+            _trayIcon.TrayLeftMouseDown += (s, e) => RestoreFromExternalActivation();
         }
         catch
         {
@@ -126,20 +159,20 @@ public partial class MainWindow : Window
 
     private async void StartButton_Click(object sender, RoutedEventArgs e)
     {
-        await StartServiceAsync();
+        await StartManagedServiceAsync();
     }
 
     private async void StopButton_Click(object sender, RoutedEventArgs e)
     {
-        await StopServiceAsync();
+        await StopManagedServiceAsync();
     }
 
     private async void RestartButton_Click(object sender, RoutedEventArgs e)
     {
         StatusBarText.Text = "Restarting service...";
-        await StopServiceAsync();
+        await StopManagedServiceAsync();
         await Task.Delay(2000);
-        await StartServiceAsync();
+        await StartManagedServiceAsync();
     }
 
     private async void TestPrintButton_Click(object sender, RoutedEventArgs e)
@@ -182,14 +215,12 @@ public partial class MainWindow : Window
 
     private async void InstallServiceButton_Click(object sender, RoutedEventArgs e)
     {
-        var installer = new WindowsServiceInstaller(_exePath);
-
         // Check if already installed
-        if (installer.IsServiceInstalled())
+        if (_windowsServiceInstaller.IsServiceInstalled())
         {
             var uninstallResult = MessageBox.Show(
                 "Service is already installed.\n\n" +
-                $"Current Status: {installer.GetServiceStatus()}\n\n" +
+                $"Current Status: {_windowsServiceInstaller.GetServiceStatus()}\n\n" +
                 "Do you want to uninstall it?",
                 "Service Already Installed",
                 MessageBoxButton.YesNo,
@@ -198,12 +229,13 @@ public partial class MainWindow : Window
             if (uninstallResult == MessageBoxResult.Yes)
             {
                 StatusBarText.Text = "Uninstalling service...";
-                var (success, message) = await installer.UninstallServiceAsync();
+                var (success, message) = await _windowsServiceInstaller.UninstallServiceAsync();
 
                 if (success)
                 {
                     MessageBox.Show(message, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     StatusBarText.Text = "Service uninstalled";
+                    await RefreshServiceStatusAsync();
                 }
                 else
                 {
@@ -231,7 +263,7 @@ public partial class MainWindow : Window
             StatusBarText.Text = "Installing service...";
             LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] Installing Windows Service...\n");
 
-            var (success, message) = await installer.InstallServiceAsync();
+            var (success, message) = await _windowsServiceInstaller.InstallServiceAsync();
 
             if (success)
             {
@@ -246,6 +278,7 @@ public partial class MainWindow : Window
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 StatusBarText.Text = "Service installed successfully";
+                await RefreshServiceStatusAsync();
             }
             else
             {
@@ -278,7 +311,11 @@ public partial class MainWindow : Window
                     AllowRemoteConnections = RemoteAccessCheckBox.IsChecked ?? false,
                     RequireApiKey = RequireApiKeyCheckBox.IsChecked ?? false,
                     ApiKey = ApiKeyTextBox.Text,
-                    AllowedOrigins = new List<string> { "*" }
+                    AllowedOrigins = _configManager.GetAllowedOrigins()
+                },
+                Logging = new LoggingSettings
+                {
+                    LogDirectory = _configManager.GetLogDirectory()
                 }
             };
 
@@ -395,7 +432,7 @@ public partial class MainWindow : Window
 
     private void OpenLogFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "logs");
+        var logDir = _configManager.GetLogDirectory();
 
         if (!Directory.Exists(logDir))
         {
@@ -453,6 +490,7 @@ public partial class MainWindow : Window
     {
         if (WindowState == WindowState.Minimized && MinimizeToTrayCheckBox.IsChecked == true)
         {
+            ShowInTaskbar = false;
             Hide();
         }
     }
@@ -485,9 +523,84 @@ public partial class MainWindow : Window
         }
 
         _trayIcon?.Dispose();
+        _statusRefreshTimer.Stop();
     }
 
-    private async Task StartServiceAsync()
+    public void RestoreFromExternalActivation()
+    {
+        Show();
+        ShowInTaskbar = true;
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
+    }
+
+    private bool IsInstalledServiceMode()
+    {
+        return _windowsServiceInstaller.IsServiceInstalled();
+    }
+
+    private async Task StartManagedServiceAsync()
+    {
+        if (IsInstalledServiceMode())
+        {
+            StartButton.IsEnabled = false;
+            StatusBarText.Text = "Starting Windows service...";
+            LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] Starting installed Windows service...\n");
+
+            var (success, message) = await _windowsServiceInstaller.StartServiceAsync();
+            if (success)
+            {
+                LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
+                await WaitForApiReadyAsync();
+            }
+            else
+            {
+                LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] ERROR: {message}\n");
+                ShowError("Service Start Failed", message);
+            }
+
+            await RefreshServiceStatusAsync();
+            LogTextBox.ScrollToEnd();
+            return;
+        }
+
+        await StartLocalServiceAsync();
+    }
+
+    private async Task StopManagedServiceAsync()
+    {
+        if (IsInstalledServiceMode())
+        {
+            StatusBarText.Text = "Stopping Windows service...";
+            LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] Stopping installed Windows service...\n");
+
+            var (success, message) = await _windowsServiceInstaller.StopServiceAsync();
+            if (success)
+            {
+                LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
+            }
+            else
+            {
+                LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] ERROR: {message}\n");
+                ShowError("Service Stop Failed", message);
+            }
+
+            await RefreshServiceStatusAsync();
+            LogTextBox.ScrollToEnd();
+            return;
+        }
+
+        await StopLocalServiceAsync();
+    }
+
+    private async Task StartLocalServiceAsync()
     {
         StartButton.IsEnabled = false;
         StatusBarText.Text = "Starting service...";
@@ -509,7 +622,7 @@ public partial class MainWindow : Window
         LogTextBox.ScrollToEnd();
     }
 
-    private async Task StopServiceAsync()
+    private async Task StopLocalServiceAsync()
     {
         StatusBarText.Text = "Stopping service...";
         LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] Stopping service...\n");
@@ -518,6 +631,46 @@ public partial class MainWindow : Window
 
         LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] Service stopped\n");
         LogTextBox.ScrollToEnd();
+    }
+
+    private async Task WaitForApiReadyAsync()
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            if (await _apiClient.CheckHealthAsync() is (true, _, _))
+            {
+                return;
+            }
+
+            await Task.Delay(1000);
+        }
+    }
+
+    private async Task RefreshServiceStatusAsync()
+    {
+        bool installed = _windowsServiceInstaller.IsServiceInstalled();
+        bool running = installed
+            ? _windowsServiceInstaller.IsServiceRunning()
+            : _serviceManager.IsRunning;
+
+        bool healthy = running && await _apiClient.CheckHealthAsync() is (true, _, _);
+        ServiceManager_StatusChanged(this, running && healthy);
+
+        if (running && !healthy)
+        {
+            StatusText.Text = installed ? "Service Starting" : "Service Running";
+            HealthText.Text = "Waiting for API";
+            StatusBarText.Text = installed
+                ? "Windows service is running, waiting for API"
+                : "Service process is running, waiting for API";
+            StopButton.IsEnabled = true;
+            RestartButton.IsEnabled = true;
+            StartButton.IsEnabled = false;
+        }
+        else if (!running)
+        {
+            StatusBarText.Text = installed ? "Installed service is stopped" : "Service stopped";
+        }
     }
 
     private void ServiceManager_OutputReceived(object? sender, string e)

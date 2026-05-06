@@ -7,6 +7,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>..\..\logo.ico</ApplicationIcon>
+    <BrandingVariant Condition="'$(BrandingVariant)'==''">Developer</BrandingVariant>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(BrandingVariant)'=='Customer'">
+    <DefineConstants>$(DefineConstants);CUSTOMER_BRANDING</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(BrandingVariant)'!='Customer'">
+    <DefineConstants>$(DefineConstants);DEVELOPER_BRANDING</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 using System.ServiceProcess;
 using System.Diagnostics;
+using System.Text;
 
 namespace SilentPrintBridge.UI.Services;
 
@@ -166,6 +167,14 @@ public class WindowsServiceInstaller
                 return (false, $"Failed to start service (exit code {process.ExitCode})");
             }
 
+            using var controller = new ServiceController(_serviceName);
+            controller.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(15));
+
+            if (controller.Status != ServiceControllerStatus.Running)
+            {
+                return (false, $"Service did not reach running state. Current state: {controller.Status}");
+            }
+
             return (true, "Service started successfully");
         }
         catch (Exception ex)
@@ -257,5 +266,10 @@ public class WindowsServiceInstaller
         {
             return "Not Installed";
         }
+    }
+
+    public string GetExecutablePath()
+    {
+        return _exePath;
     }
 }

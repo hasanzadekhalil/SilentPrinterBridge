@@ -22,7 +22,7 @@ public class ServerSettings
     public bool AllowRemoteConnections { get; set; } = false;
     public bool RequireApiKey { get; set; } = false;
     public string ApiKey { get; set; } = "";
-    public List<string> AllowedOrigins { get; set; } = new() { "*" };
+    public List<string> AllowedOrigins { get; set; } = new() { "http://localhost", "http://127.0.0.1", "file://" };
 }
 
 public class LoggingSettings

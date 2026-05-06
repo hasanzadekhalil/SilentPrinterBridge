@@ -82,6 +82,9 @@ New-Service -Name $serviceName `
     -Description "Local HTTP bridge for silent browser-to-printer communication" `
     -StartupType Automatic
 
+sc.exe config $serviceName start= delayed-auto depend= Spooler | Out-Null
+sc.exe failure $serviceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
+
 # Start service
 Write-Host "Starting service..." -ForegroundColor Gray
 Start-Service -Name $serviceName

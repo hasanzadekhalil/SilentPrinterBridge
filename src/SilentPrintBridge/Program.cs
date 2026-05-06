@@ -1,7 +1,9 @@
 using Serilog;
+using SilentPrintBridge.Branding;
 using SilentPrintBridge.Services;
 using SilentPrintBridge.Security;
 using SilentPrintBridge.Models;
+using SilentPrintBridge.Utils;
 
 // Parse command line arguments
 var cmdArgs = Environment.GetCommandLineArgs();
@@ -19,9 +21,13 @@ for (int i = 0; i < cmdArgs.Length - 1; i++)
 }
 
 var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+var runtimeConfigPath = AppPaths.ResolveRuntimeConfigPath(AppContext.BaseDirectory);
+AppPaths.EnsureRuntimeConfigExists(AppContext.BaseDirectory);
+AppPaths.NormalizeRuntimeConfig(AppContext.BaseDirectory);
+builder.Configuration.AddJsonFile(runtimeConfigPath, optional: false, reloadOnChange: false);
 
 // Configure Serilog
-var logDirectory = builder.Configuration["Logging:LogDirectory"] ?? "C:\\ProgramData\\SilentPrintBridge\\logs";
+var logDirectory = builder.Configuration["Logging:LogDirectory"] ?? AppPaths.DefaultLogDirectory;
 Directory.CreateDirectory(logDirectory);
 
 Log.Logger = new LoggerConfiguration()
@@ -59,7 +65,40 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(config.Server.AllowedOrigins.ToArray())
+        if (!config.Server.AllowRemoteConnections)
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+            return;
+        }
+
+        var origins = config.Server.AllowedOrigins
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (origins.Count == 0 || origins.Contains("*"))
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+            return;
+        }
+
+        var allowsFileOrigin = origins.RemoveAll(origin => string.Equals(origin, "file://", StringComparison.OrdinalIgnoreCase)) > 0;
+
+        if (allowsFileOrigin)
+        {
+            policy.SetIsOriginAllowed(origin =>
+                string.Equals(origin, "null", StringComparison.OrdinalIgnoreCase) ||
+                origins.Contains(origin, StringComparer.OrdinalIgnoreCase));
+            policy.AllowAnyMethod()
+                  .AllowAnyHeader();
+            return;
+        }
+
+        policy.WithOrigins(origins.ToArray())
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -149,6 +188,7 @@ app.Urls.Clear();
 app.Urls.Add($"http://{host}:{config.Server.Port}");
 
 Log.Information("SilentPrintBridge starting on {Host}:{Port}", host, config.Server.Port);
+Log.Information("Using runtime config path: {ConfigPath}", runtimeConfigPath);
 
 // API Endpoints
 
@@ -250,13 +290,15 @@ app.MapPost("/test-print", async (HttpContext context, ConfigService configServi
 
         var testData = EscPosBuilder.BuildTestReceipt("SilentPrintBridge", printerName, cfg.Printer.ReceiptWidthMm);
 
-        // Check if it's a PDF printer
-        bool isPdfPrinter = printerName.Contains("PDF", StringComparison.OrdinalIgnoreCase) ||
-                           printerName.Contains("XPS", StringComparison.OrdinalIgnoreCase);
+        bool isPdfPrinter = PdfPrinterHelper.IsPdfPrinter(printerName);
+        bool isThermalPrinter = printerName.Contains("TM-", StringComparison.OrdinalIgnoreCase) ||
+                               printerName.Contains("EPSON", StringComparison.OrdinalIgnoreCase) ||
+                               printerName.Contains("STAR", StringComparison.OrdinalIgnoreCase) ||
+                               printerName.Contains("POS", StringComparison.OrdinalIgnoreCase) ||
+                               printerName.Contains("RECEIPT", StringComparison.OrdinalIgnoreCase);
 
-        if (isPdfPrinter)
+        if (isPdfPrinter || !isThermalPrinter)
         {
-            // For PDF printers, use text-based printing instead of RAW ESC/POS
             var textContent = @"
 ========================================
     SILENTPRINTBRIDGE TEST RECEIPT
@@ -277,12 +319,7 @@ the printer is working correctly.
 
 If you can read this, the printer is
 configured and functioning properly.
-
-========================================
-     Developed by Khalil Hasanzade
-     github.com/hasanzadekhalil
-========================================
-";
+" + BuildBranding.TestReceiptFooter;
 
             bool success = PdfPrinterHelper.PrintTextToPrinter(printerName, textContent, "Test Receipt");
 
@@ -294,20 +331,22 @@ configured and functioning properly.
                     JobId = Guid.NewGuid().ToString("N"),
                     PrinterName = printerName,
                     Mode = "text",
-                    Message = $"Test receipt printed successfully to PDF printer"
+                    Message = isPdfPrinter
+                        ? "Test receipt printed successfully to PDF printer"
+                        : "Test receipt printed successfully via Windows printer driver"
                 });
             }
-            else
+
+            return Results.BadRequest(new PrintResponse
             {
-                return Results.BadRequest(new PrintResponse
-                {
-                    Success = false,
-                    PrinterName = printerName,
-                    Error = "Failed to print to PDF printer",
-                    ErrorCode = "PRINT_FAILED"
-                });
-            }
+                Success = false,
+                PrinterName = printerName,
+                Error = "Failed to print test receipt via Windows printer driver",
+                ErrorCode = "PRINT_FAILED"
+            });
         }
+
+        // Thermal ESC/POS printer path
 
         bool cut = request?.Cut ?? cfg.Printer.AppendCutCommand;
         if (cut)

@@ -1,26 +1,41 @@
 ; SilentPrintBridge Installer Script
 ; Created by Khalil Hasanzade
 
+#ifndef SourceDir
+#define SourceDir "..\SilentPrintBridge-Professional"
+#endif
+
+#ifndef OutputBaseName
+#define OutputBaseName "SilentPrintBridge-Setup"
+#endif
+
 #define MyAppName "SilentPrintBridge"
 #define MyAppVersion "1.0.0"
+#ifdef CustomerBuild
+#define MyAppPublisher "SilentPrintBridge"
+#define MyAppExeName "SilentPrintBridge.UI.exe"
+#else
 #define MyAppPublisher "Khalil Hasanzade"
 #define MyAppURL "https://github.com/hasanzadekhalil/SilentPrintBridge"
 #define MyAppExeName "SilentPrintBridge.UI.exe"
+#endif
 
 [Setup]
 AppId={{8F9A2B3C-4D5E-6F7A-8B9C-0D1E2F3A4B5C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+#ifndef CustomerBuild
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+#endif
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=..\LICENSE
 OutputDir=..\installer
-OutputBaseFilename=SilentPrintBridge-Setup
+OutputBaseFilename={#OutputBaseName}
 SetupIconFile=..\logo.ico
 Compression=lzma
 SolidCompression=yes
@@ -37,12 +52,18 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
 
 [Files]
-Source: "..\SilentPrintBridge-Professional\SilentPrintBridge.UI.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\SilentPrintBridge-Professional\SilentPrintBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\SilentPrintBridge-Professional\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion confirmoverwrite
-Source: "..\SilentPrintBridge-Professional\samples\*"; DestDir: "{app}\samples"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\SilentPrintBridge.UI.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\SilentPrintBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion confirmoverwrite
+Source: "{#SourceDir}\appsettings.json"; DestDir: "{commonappdata}\SilentPrintBridge"; Flags: onlyifdoesntexist
+Source: "{#SourceDir}\samples\*"; DestDir: "{app}\samples"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+
+[Dirs]
+Name: "{commonappdata}\SilentPrintBridge"; Permissions: users-full
+Name: "{commonappdata}\SilentPrintBridge\logs"; Permissions: users-full
+Name: "{commonappdata}\SilentPrintBridge\temp"; Permissions: users-full
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -51,7 +72,21 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
+Filename: "sc.exe"; Parameters: "create SilentPrintBridge binPath= ""{app}\SilentPrintBridge.exe"" start= auto DisplayName= ""SilentPrintBridge Service"""; Flags: runhidden; StatusMsg: "Installing Windows service..."
+Filename: "sc.exe"; Parameters: "description SilentPrintBridge ""Silent browser-to-printer communication service for thermal printers"""; Flags: runhidden
+Filename: "sc.exe"; Parameters: "config SilentPrintBridge start= delayed-auto depend= Spooler"; Flags: runhidden
+Filename: "sc.exe"; Parameters: "failure SilentPrintBridge reset= 86400 actions= restart/60000/restart/60000/restart/60000"; Flags: runhidden
+Filename: "sc.exe"; Parameters: "start SilentPrintBridge"; Flags: runhidden; StatusMsg: "Starting Windows service..."
+#ifndef CustomerBuild
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+#endif
+
+[UninstallRun]
+Filename: "sc.exe"; Parameters: "stop SilentPrintBridge"; Flags: runhidden
+Filename: "sc.exe"; Parameters: "delete SilentPrintBridge"; Flags: runhidden
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{commonappdata}\SilentPrintBridge"
 
 [Code]
 function InitializeSetup(): Boolean;
